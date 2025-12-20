@@ -27,8 +27,8 @@ const PiezaModal: React.FC<Props> = ({ pieza, onSave, onClose }) => {
           <option value="caries">Caries</option>
           <option value="obturado">Obturado</option>
           <option value="corona">Corona</option>
-          <option value="extraccion">Extracción</option>
-          <option value="rx">Radiografía</option>
+          <option value="extraccion">ExtracciÃ³n</option>
+          <option value="rx">RadiografÃ­a</option>
           <option value="ausente">Ausente</option>
         </select>
 
