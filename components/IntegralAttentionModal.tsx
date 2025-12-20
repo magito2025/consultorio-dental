@@ -1,9 +1,8 @@
 ﻿// src/components/IntegralAttentionModal.tsx
-import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem, PiezaDental } from '../types';
-import Odontograma from './Odontograma';
-import PiezaModal from './PiezaModal';
+import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem, PiezaDental, PRECIOS } from '../types';
+import Odontograma from '../components/Odontograma';
+import PiezaModal from '../components/PiezaModal';
 import {
   X, Stethoscope, Save, DollarSign, Calendar as CalendarIcon,
   CheckCircle2, Wallet, Activity, Zap
