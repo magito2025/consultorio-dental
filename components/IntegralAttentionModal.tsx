@@ -1,9 +1,10 @@
-
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem } from '../types';
-import { 
-  X, Stethoscope, Save, DollarSign, Calendar as CalendarIcon, 
+import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem, PiezaDental } from '../types';
+import Odontograma from './Odontograma';
+import PiezaModal from './PiezaModal';
+import {
+  X, Stethoscope, Save, DollarSign, Calendar as CalendarIcon,
   CheckCircle2, AlertCircle, ChevronRight, Wallet, Clock, Activity, Zap
 } from 'lucide-react';
 
@@ -21,12 +22,16 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
   // Clinical
   const [procedure, setProcedure] = useState('');
   const [description, setDescription] = useState('');
-  
+
+  // Odontograma
+  const [odontograma, setOdontograma] = useState<PiezaDental[]>([]);
+  const [piezaModal, setPiezaModal] = useState<PiezaDental | null>(null);
+
   // Financial
   const [totalCost, setTotalCost] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo');
-  
+
   // Scheduling
   const [scheduleNext, setScheduleNext] = useState(false);
   const [nextDate, setNextDate] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]); // Tomorrow
@@ -35,45 +40,41 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
 
   // Logic Helpers
   const currentDebt = db.getPatientBalance(patient.id).debt;
-  const newDebt = totalCost - (parseFloat(paymentAmount) || 0);
+  const costoProcedimiento = availableProcedures.find(p => p.name === procedure)?.price || 0;
+  const costoPiezas = odontograma.reduce((s, p) => s + (p.precio || 0), 0);
+  const newDebt = (costoProcedimiento + costoPiezas) - (parseFloat(paymentAmount) || 0);
   const finalBalance = currentDebt + newDebt;
 
   // Effects
   useEffect(() => {
-      setAvailableProcedures(db.getProcedures());
+    setAvailableProcedures(db.getProcedures());
   }, []);
 
   useEffect(() => {
-    // Find price for selected procedure
-    if (procedure) {
-        const found = availableProcedures.find(p => p.name === procedure);
-        if (found) {
-            setTotalCost(found.price);
-        }
-    }
-  }, [procedure, availableProcedures]);
+    setTotalCost(costoProcedimiento + costoPiezas);
+  }, [costoProcedimiento, costoPiezas]);
 
   const handleSave = () => {
     if (!procedure) return;
 
     db.saveIntegralVisit({
-        patient,
-        treatment: {
-            procedure,
-            description,
-            cost: totalCost,
-            date: new Date().toISOString(),
-            status: 'Completado' // Integral visits assume work is done now
-        },
-        payment: {
-            amount: parseFloat(paymentAmount) || 0,
-            method: paymentMethod
-        },
-        nextAppointment: scheduleNext ? {
-            date: new Date(`${nextDate}T${nextTime}`).toISOString(),
-            type: nextType as any,
-            notes: `Seguimiento: ${procedure}`
-        } : undefined
+      patient,
+      treatment: {
+        procedure,
+        description: `${description} | Piezas: ${odontograma.map(p => `${p.numero}(${p.estado})`).join(', ')}`,
+        cost: totalCost,
+        date: new Date().toISOString(),
+        status: 'Completado'
+      },
+      payment: {
+        amount: parseFloat(paymentAmount) || 0,
+        method: paymentMethod
+      },
+      nextAppointment: scheduleNext ? {
+        date: new Date(`${nextDate}T${nextTime}`).toISOString(),
+        type: nextType as any,
+        notes: `Seguimiento: ${procedure}`
+      } : undefined
     });
 
     onSuccess();
@@ -86,19 +87,16 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
       <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         
-        {/* Header - Consistent with Agendar Cita */}
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
            <div className="flex items-center gap-3 text-indigo-700 dark:text-indigo-300">
-              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                <Zap size={24} />
-              </div>
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg"><Zap size={24} /></div>
               <div>
                  <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">Atención Integral</h2>
                  <p className="text-xs text-slate-400">Tratamiento, Cobro y Agenda en un paso</p>
               </div>
            </div>
            
-           {/* Patient Quick Info in Header */}
            <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-full border border-slate-200 dark:border-slate-600">
                 <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">
                     {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
@@ -137,6 +135,25 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
                                 {availableProcedures.map(p => <option key={p.id} value={p.name} />)}
                             </datalist>
                         </div>
+
+                        {/* ODONTOGRAMA INSERTADO AQUÍ */}
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">Odontograma</label>
+                            <Odontograma piezas={odontograma} onPieceClick={setPiezaModal} readOnly={false} />
+                            {piezaModal && (
+                                <PiezaModal
+                                    pieza={piezaModal}
+                                    onSave={(p) => {
+                                        setOdontograma(prev => {
+                                            const idx = prev.findIndex(x => x.numero === p.numero);
+                                            return idx >= 0 ? prev.map((x, i) => (i === idx ? p : x)) : [...prev, p];
+                                        });
+                                        setPiezaModal(null);
+                                    }}
+                                    onClose={() => setPiezaModal(null)}
+                                />
+                            )}
+                        </div>
                         
                         <div className="flex-1">
                             <label className="block text-xs font-semibold text-slate-500 mb-1">Evolución / Notas</label>
@@ -168,6 +185,7 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
                                     value={totalCost}
                                     onChange={(e) => setTotalCost(parseFloat(e.target.value) || 0)}
                                     className="w-full pl-10 p-3 text-xl font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-700 rounded-lg border-2 border-transparent focus:border-primary outline-none"
+                                    readOnly
                                 />
                             </div>
                         </div>
