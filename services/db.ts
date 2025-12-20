@@ -1,56 +1,120 @@
 
-import { User, UserRole, Patient, Appointment, Payment, Treatment, Reminder, TreatmentStatus, PaymentMethod } from '../types';
+import { User, UserRole, Patient, Appointment, Payment, Treatment, Reminder, TreatmentStatus, PaymentMethod, ProcedureItem } from '../types';
 
 // Initial Mock Data
 const DEFAULT_USERS: User[] = [
-  { id: '1', username: 'admin', name: 'Dr. Taboada', role: UserRole.OWNER, password: 'admin', lastAccess: new Date().toISOString() },
-  { id: '2', username: 'sec', name: 'Secretaría General', role: UserRole.SECRETARY, password: '123', lastAccess: new Date(Date.now() - 86400000).toISOString() },
+  { id: '1', username: 'admin', name: 'Dr. Taboada (Director)', role: UserRole.PRINCIPAL, password: 'admin', lastAccess: new Date().toISOString() },
+  { id: '2', username: 'doc1', name: 'Dra. Vargas', role: UserRole.DOCTOR, password: '123', lastAccess: new Date(Date.now() - 3600000).toISOString() },
+  { id: '3', username: 'recepcion', name: 'Secretaría General', role: UserRole.STAFF, password: '123', lastAccess: new Date(Date.now() - 86400000).toISOString() },
 ];
 
 // --- MOCK DATA GENERATION ---
 const today = new Date();
+const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+const dayAfter = new Date(today); dayAfter.setDate(dayAfter.getDate() + 2);
+const nextWeek = new Date(today); nextWeek.setDate(nextWeek.getDate() + 7);
+
 const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
 const lastWeek = new Date(today); lastWeek.setDate(lastWeek.getDate() - 7);
+const twoWeeksAgo = new Date(today); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+const lastMonth = new Date(today); lastMonth.setMonth(lastMonth.getMonth() - 1);
+const twoMonthsAgo = new Date(today); twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+const threeMonthsAgo = new Date(today); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-const DEFAULT_PATIENTS: Patient[] = [
-  { id: '1', firstName: 'Juan', lastName: 'Pérez', dni: '8493021', allergies: 'Penicilina', generalDescription: 'Sensibilidad dental.', medicalHistory: ['Hipertensión'], age: '34', weight: '75', height: '175', createdAt: lastWeek.toISOString() },
-  { id: '2', firstName: 'Maria', lastName: 'Gonzales', dni: '5930212', allergies: 'Ninguna', generalDescription: 'Revisión semestral.', medicalHistory: [], age: '28', weight: '60', height: '160', createdAt: lastWeek.toISOString() },
-  { id: '3', firstName: 'Carlos', lastName: 'Mamani', dni: '4839201', allergies: 'Polvo', generalDescription: 'Dolor en molar inferior.', medicalHistory: ['Diabetes'], age: '45', weight: '82', height: '170', createdAt: new Date(today.getTime() - 86400000 * 10).toISOString() },
-  { id: '4', firstName: 'Ana', lastName: 'Vargas', dni: '3948201', allergies: 'Ninguna', generalDescription: 'Ortodoncia en curso.', medicalHistory: [], age: '19', weight: '55', height: '165', createdAt: new Date(today.getTime() - 86400000 * 20).toISOString() },
-  { id: '5', firstName: 'Pedro', lastName: 'Salinas', dni: '9302193', allergies: 'Aines', generalDescription: 'Extracción programada.', medicalHistory: ['Coagulación'], age: '50', weight: '80', height: '172', createdAt: new Date(today.getTime() - 86400000 * 5).toISOString() },
-  { id: '6', firstName: 'Lucia', lastName: 'Fernandez', dni: '1029384', allergies: 'Ninguna', generalDescription: 'Blanqueamiento.', medicalHistory: [], age: '25', weight: '58', height: '158', createdAt: new Date(today.getTime() - 86400000 * 3).toISOString() },
-  { id: '7', firstName: 'Roberto', lastName: 'Justiniano', dni: '5647382', allergies: 'Latex', generalDescription: 'Prótesis superior.', medicalHistory: ['Cardiopatía'], age: '65', weight: '70', height: '168', createdAt: new Date(today.getTime() - 86400000 * 15).toISOString() },
-  { id: '8', firstName: 'Sofia', lastName: 'Mendoza', dni: '7483920', allergies: 'Ninguna', generalDescription: 'Caries simple.', medicalHistory: [], age: '30', weight: '65', height: '162', createdAt: new Date(today.getTime() - 86400000 * 2).toISOString() },
+// Defaults for System Configuration
+const DEFAULT_PROCEDURES: ProcedureItem[] = [
+    { id: 'proc1', name: "Consulta General", price: 100 },
+    { id: 'proc2', name: "Limpieza Dental", price: 250 },
+    { id: 'proc3', name: "Endodoncia", price: 800 },
+    { id: 'proc4', name: "Extracción Simple", price: 200 },
+    { id: 'proc5', name: "Extracción Muela Juicio", price: 500 },
+    { id: 'proc6', name: "Blanqueamiento", price: 600 },
+    { id: 'proc7', name: "Ortodoncia (Mensualidad)", price: 350 },
+    { id: 'proc8', name: "Prótesis", price: 1500 },
+    { id: 'proc9', name: "Implante", price: 3500 },
+    { id: 'proc10', name: "Curación", price: 150 }
 ];
 
+const DEFAULT_REASONS: string[] = [
+    "Revisión General",
+    "Limpieza Dental",
+    "Dolor de Muela",
+    "Extracción",
+    "Ortodoncia",
+    "Blanqueamiento",
+    "Prótesis",
+    "Estética"
+];
+
+// --- EXPANDED PATIENT LIST (14 Patients) ---
+const DEFAULT_PATIENTS: Patient[] = [
+  { id: '1', firstName: 'Juan', lastName: 'Pérez', dni: '8493021 LP', gender: 'Masculino', civilStatus: 'Casado/a', occupation: 'Arquitecto', allergies: 'Penicilina, Mani', generalDescription: 'Sensibilidad dental generalizada.', medicalHistory: ['Hipertensión'], currentMedications: [{ name: 'Losartan', dosage: '50mg', frequency: 'Cada 12h' }], age: '34', weight: '75', height: '175', createdAt: lastMonth.toISOString() },
+  { id: '2', firstName: 'Maria', lastName: 'Gonzales', dni: '5930212 SC', gender: 'Femenino', civilStatus: 'Soltero/a', occupation: 'Abogada', allergies: 'Ninguna', generalDescription: 'Control de ortodoncia.', medicalHistory: [], age: '28', weight: '60', height: '160', createdAt: lastMonth.toISOString() },
+  { id: '3', firstName: 'Carlos', lastName: 'Mamani', dni: '4839201 LP', gender: 'Masculino', civilStatus: 'Casado/a', occupation: 'Comerciante', allergies: 'Polvo', generalDescription: 'Dolor en molar inferior.', medicalHistory: ['Diabetes'], age: '45', weight: '82', height: '170', createdAt: twoWeeksAgo.toISOString() },
+  { id: '4', firstName: 'Ana', lastName: 'Vargas', dni: '3948201 CB', gender: 'Femenino', civilStatus: 'Soltero/a', occupation: 'Estudiante', allergies: 'Ninguna', generalDescription: 'Ortodoncia en curso.', medicalHistory: [], age: '19', weight: '55', height: '165', createdAt: twoWeeksAgo.toISOString() },
+  { id: '5', firstName: 'Pedro', lastName: 'Salinas', dni: '9302193 OR', gender: 'Masculino', civilStatus: 'Divorciado/a', occupation: 'Ingeniero', allergies: 'Aines', generalDescription: 'Extracción programada.', medicalHistory: ['Coagulación'], age: '50', weight: '80', height: '172', createdAt: lastWeek.toISOString() },
+  { id: '6', firstName: 'Lucia', lastName: 'Fernandez', dni: '1029384 LP', gender: 'Femenino', civilStatus: 'Soltero/a', occupation: 'Diseñadora', allergies: 'Ninguna', generalDescription: 'Blanqueamiento.', medicalHistory: [], age: '25', weight: '58', height: '158', createdAt: lastWeek.toISOString() },
+  { id: '7', firstName: 'Roberto', lastName: 'Justiniano', dni: '5647382 SC', gender: 'Masculino', civilStatus: 'Viudo/a', occupation: 'Jubilado', allergies: 'Latex', generalDescription: 'Prótesis superior.', medicalHistory: ['Cardiopatía'], age: '65', weight: '70', height: '168', createdAt: lastWeek.toISOString() },
+  { id: '8', firstName: 'Sofia', lastName: 'Mendoza', dni: '7483920 TJ', gender: 'Femenino', civilStatus: 'Casado/a', occupation: 'Contadora', allergies: 'Ninguna', generalDescription: 'Caries simple.', medicalHistory: [], age: '30', weight: '65', height: '162', createdAt: yesterday.toISOString() },
+  { id: '9', firstName: 'Jorge', lastName: 'Torres', dni: '8374651 LP', gender: 'Masculino', civilStatus: 'Soltero/a', occupation: 'Profesor', allergies: 'Polen', generalDescription: 'Limpieza semestral.', medicalHistory: [], age: '38', weight: '78', height: '176', createdAt: yesterday.toISOString() },
+  { id: '10', firstName: 'Elena', lastName: 'Quispe', dni: '9283746 EA', gender: 'Femenino', civilStatus: 'Casado/a', occupation: 'Enfermera', allergies: 'Ninguna', generalDescription: 'Dolor agudo muela juicio.', medicalHistory: ['Gastritis'], age: '42', weight: '68', height: '155', createdAt: today.toISOString() },
+  { id: '11', firstName: 'Diego', lastName: 'Rojas', dni: '6574839 CB', gender: 'Masculino', civilStatus: 'Soltero/a', occupation: 'Estudiante', allergies: 'Ninguna', generalDescription: 'Consulta estética.', medicalHistory: [], age: '22', weight: '70', height: '178', createdAt: today.toISOString() },
+  { id: '12', firstName: 'Camila', lastName: 'Soria', dni: '5647382 BN', gender: 'Femenino', civilStatus: 'Unión Libre', occupation: 'Chef', allergies: 'Mariscos', generalDescription: 'Implante dental.', medicalHistory: [], age: '35', weight: '62', height: '165', createdAt: today.toISOString() },
+  { id: '13', firstName: 'Fernando', lastName: 'Aliaga', dni: '4738291 LP', gender: 'Masculino', civilStatus: 'Casado/a', occupation: 'Abogado', allergies: 'Ninguna', generalDescription: 'Diseño de sonrisa.', medicalHistory: ['Bruxismo'], age: '48', weight: '85', height: '174', createdAt: today.toISOString() },
+  { id: '14', firstName: 'Patricia', lastName: 'Duran', dni: '3829102 SC', gender: 'Femenino', civilStatus: 'Viudo/a', occupation: 'Ama de Casa', allergies: 'Penicilina', generalDescription: 'Prótesis removible.', medicalHistory: ['Diabetes'], age: '60', weight: '72', height: '160', createdAt: today.toISOString() },
+];
+
+// --- POPULATED TREATMENTS FOR DEMO ---
 const DEFAULT_TREATMENTS: Treatment[] = [
-  { id: 't1', patientId: '1', patientName: 'Juan Pérez', procedure: 'Endodoncia', description: 'Tratamiento de conducto diente 24', cost: 800, status: 'Completado', date: lastWeek.toISOString() },
-  { id: 't2', patientId: '3', patientName: 'Carlos Mamani', procedure: 'Extracción Simple', description: 'Muela dañada', cost: 200, status: 'Completado', date: lastWeek.toISOString() },
-  { id: 't3', patientId: '4', patientName: 'Ana Vargas', procedure: 'Ortodoncia Mes 1', description: 'Ajuste de brackets', cost: 350, status: 'Completado', date: new Date(today.getTime() - 86400000 * 18).toISOString() },
-  { id: 't4', patientId: '4', patientName: 'Ana Vargas', procedure: 'Ortodoncia Mes 2', description: 'Ajuste de brackets', cost: 350, status: 'En Proceso', date: today.toISOString() },
-  { id: 't5', patientId: '7', patientName: 'Roberto Justiniano', procedure: 'Prótesis Completa', description: 'Superior e inferior', cost: 2500, status: 'Planificado', date: yesterday.toISOString() },
-  { id: 't6', patientId: '6', patientName: 'Lucia Fernandez', procedure: 'Blanqueamiento', description: 'Sesión 1', cost: 500, status: 'En Proceso', date: new Date(today.getTime() - 86400000 * 0.5).toISOString() },
+  // Juan Perez History
+  { id: 't1', patientId: '1', patientName: 'Juan Pérez', procedure: 'Consulta General', description: 'Evaluación inicial.', cost: 100, status: 'Completado', date: threeMonthsAgo.toISOString() },
+  { id: 't1_2', patientId: '1', patientName: 'Juan Pérez', procedure: 'Radiografía Panorámica', description: 'Diagnóstico de terceros molares.', cost: 150, status: 'Completado', date: threeMonthsAgo.toISOString() },
+  { id: 't1_3', patientId: '1', patientName: 'Juan Pérez', procedure: 'Limpieza Dental', description: 'Profilaxis profunda.', cost: 250, status: 'Completado', date: twoMonthsAgo.toISOString() },
+  { id: 't1_4', patientId: '1', patientName: 'Juan Pérez', procedure: 'Extracción Simple', description: 'Pieza 18, sin complicaciones.', cost: 200, status: 'Completado', date: lastMonth.toISOString() },
+  { id: 't1_5', patientId: '1', patientName: 'Juan Pérez', procedure: 'Curación', description: 'Resina pieza 24.', cost: 150, status: 'Completado', date: lastWeek.toISOString() },
+
+  // Maria Gonzales
+  { id: 't2', patientId: '2', patientName: 'Maria Gonzales', procedure: 'Limpieza Dental', description: 'Profilaxis.', cost: 250, status: 'Completado', date: lastWeek.toISOString() },
+  
+  // Sofia Mendoza History
+  { id: 't3', patientId: '8', patientName: 'Sofia Mendoza', procedure: 'Consulta General', description: 'Dolor leve al frío.', cost: 100, status: 'Completado', date: twoMonthsAgo.toISOString() },
+  { id: 't3_2', patientId: '8', patientName: 'Sofia Mendoza', procedure: 'Curación', description: 'Resina simple pieza 36.', cost: 150, status: 'Completado', date: yesterday.toISOString() },
+  
+  // Others
+  { id: 't4', patientId: '9', patientName: 'Jorge Torres', procedure: 'Consulta General', description: 'Revisión.', cost: 100, status: 'Completado', date: yesterday.toISOString() },
+  { id: 't5', patientId: '10', patientName: 'Elena Quispe', procedure: 'Radiografía', description: 'Panorámica.', cost: 100, status: 'Completado', date: today.toISOString() },
+  { id: 't6', patientId: '14', patientName: 'Patricia Duran', procedure: 'Toma de Impresión', description: 'Para prótesis.', cost: 200, status: 'Completado', date: today.toISOString() },
 ];
 
 const DEFAULT_PAYMENTS: Payment[] = [
-  { id: 'p1', patientId: '1', patientName: 'Juan Pérez', amount: 400, date: lastWeek.toISOString(), method: 'Efectivo', notes: 'Adelanto 50%' },
-  { id: 'p2', patientId: '3', patientName: 'Carlos Mamani', amount: 200, date: lastWeek.toISOString(), method: 'QR', notes: 'Pago total' },
-  { id: 'p3', patientId: '4', patientName: 'Ana Vargas', amount: 350, date: new Date(today.getTime() - 86400000 * 18).toISOString(), method: 'Transferencia', notes: 'Mes 1 pagado' },
+  { id: 'p1', patientId: '1', patientName: 'Juan Pérez', amount: 150, date: lastMonth.toISOString(), method: 'Efectivo', notes: 'Consulta + RX', status: 'completed' },
+  { id: 'p2', patientId: '8', patientName: 'Sofia Mendoza', amount: 150, date: yesterday.toISOString(), method: 'QR', notes: 'Curación', status: 'completed' },
+  { id: 'p3', patientId: '10', patientName: 'Elena Quispe', amount: 100, date: today.toISOString(), method: 'Efectivo', notes: 'RX', status: 'completed' },
 ];
 
+// --- FUTURE APPOINTMENTS FOR WIDGET ---
 const DEFAULT_APPOINTMENTS: Appointment[] = [
-    { id: 'a1', patientId: '6', patientName: 'Lucia Fernandez', date: new Date(today.setHours(10, 0)).toISOString(), type: 'Tratamiento', status: 'Pendiente', notes: 'Blanqueamiento sesión 1' },
-    { id: 'a2', patientId: '4', patientName: 'Ana Vargas', date: new Date(today.setHours(11, 30)).toISOString(), type: 'Revisión', status: 'Pendiente', notes: 'Control Ortodoncia' },
-    { id: 'a3', patientId: '5', patientName: 'Pedro Salinas', date: new Date(today.setHours(15, 0)).toISOString(), type: 'Consulta', status: 'Pendiente', notes: 'Valoración extracción' },
-    { id: 'a4', patientId: '2', patientName: 'Maria Gonzales', date: new Date(today.getTime() + 86400000).toISOString(), type: 'Revisión', status: 'Pendiente', notes: 'Control semestral' },
+    // Today
+    { id: 'a1', patientId: '4', patientName: 'Ana Vargas', date: new Date(today.setHours(14, 0, 0, 0)).toISOString(), type: 'Tratamiento', status: 'Pendiente', notes: 'Ajuste brackets' },
+    { id: 'a2', patientId: '11', patientName: 'Diego Rojas', date: new Date(today.setHours(16, 30, 0, 0)).toISOString(), type: 'Consulta', status: 'Pendiente', notes: 'Valoración' },
+    
+    // Tomorrow
+    { id: 'a3', patientId: '5', patientName: 'Pedro Salinas', date: new Date(tomorrow.setHours(9, 0, 0, 0)).toISOString(), type: 'Tratamiento', status: 'Pendiente', notes: 'Extracción' },
+    { id: 'a4', patientId: '12', patientName: 'Camila Soria', date: new Date(tomorrow.setHours(11, 0, 0, 0)).toISOString(), type: 'Consulta', status: 'Pendiente', notes: 'Valoración Implante' },
+    
+    // Day After
+    { id: 'a5', patientId: '7', patientName: 'Roberto Justiniano', date: new Date(dayAfter.setHours(10, 0, 0, 0)).toISOString(), type: 'Revisión', status: 'Pendiente', notes: 'Prueba metal' },
+    
+    // Next Week
+    { id: 'a6', patientId: '13', patientName: 'Fernando Aliaga', date: new Date(nextWeek.setHours(15, 0, 0, 0)).toISOString(), type: 'Tratamiento', status: 'Pendiente', notes: 'Diseño Sonrisa' },
 ];
 
 const DEFAULT_REMINDERS: Reminder[] = [
     { id: 'r1', text: 'Comprar resina compuesta A2', completed: false, createdAt: yesterday.toISOString(), createdBy: 'Dr. Taboada', createdById: '1' },
-    { id: 'r2', text: 'Llamar al laboratorio dental sobre prótesis Sr. Roberto', completed: true, createdAt: lastWeek.toISOString(), createdBy: 'Secretaría General', createdById: '2' },
+    { id: 'r2', text: 'Llamar al laboratorio dental sobre prótesis Sr. Roberto', completed: true, createdAt: lastWeek.toISOString(), createdBy: 'Secretaría General', createdById: '3' },
 ];
 
-const STORAGE_KEY = 'dentalflow_db_v5'; 
+const STORAGE_KEY = 'dentalflow_db_v7'; 
 const LOGO_KEY = 'dentalflow_logo';
 
 class LocalDatabase {
@@ -61,6 +125,9 @@ class LocalDatabase {
   private payments: Payment[];
   private reminders: Reminder[];
   private financialGoal: number;
+  // Dynamic Settings
+  private procedures: ProcedureItem[];
+  private consultationReasons: string[];
 
   constructor() {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -73,6 +140,8 @@ class LocalDatabase {
       this.payments = data.payments || DEFAULT_PAYMENTS;
       this.reminders = data.reminders || DEFAULT_REMINDERS;
       this.financialGoal = data.financialGoal || 3300;
+      this.procedures = data.procedures || DEFAULT_PROCEDURES;
+      this.consultationReasons = data.consultationReasons || DEFAULT_REASONS;
     } else {
       this.users = DEFAULT_USERS;
       this.patients = DEFAULT_PATIENTS;
@@ -81,6 +150,8 @@ class LocalDatabase {
       this.payments = DEFAULT_PAYMENTS;
       this.reminders = DEFAULT_REMINDERS;
       this.financialGoal = 3300;
+      this.procedures = DEFAULT_PROCEDURES;
+      this.consultationReasons = DEFAULT_REASONS;
       this.save();
     }
   }
@@ -93,7 +164,9 @@ class LocalDatabase {
       treatments: this.treatments,
       payments: this.payments,
       reminders: this.reminders,
-      financialGoal: this.financialGoal
+      financialGoal: this.financialGoal,
+      procedures: this.procedures,
+      consultationReasons: this.consultationReasons
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
@@ -105,6 +178,38 @@ class LocalDatabase {
 
   getLogo(): string | null {
     return localStorage.getItem(LOGO_KEY);
+  }
+
+  // --- System Configuration (Procedures & Reasons) ---
+  getProcedures(): ProcedureItem[] {
+      return [...this.procedures];
+  }
+
+  addProcedure(procedure: Omit<ProcedureItem, 'id'>) {
+      const newProc = { ...procedure, id: Math.random().toString(36).substr(2, 9) };
+      this.procedures.push(newProc);
+      this.save();
+  }
+
+  removeProcedure(id: string) {
+      this.procedures = this.procedures.filter(p => p.id !== id);
+      this.save();
+  }
+
+  getConsultationReasons(): string[] {
+      return [...this.consultationReasons];
+  }
+
+  addConsultationReason(reason: string) {
+      if (!this.consultationReasons.includes(reason)) {
+          this.consultationReasons.push(reason);
+          this.save();
+      }
+  }
+
+  removeConsultationReason(reason: string) {
+      this.consultationReasons = this.consultationReasons.filter(r => r !== reason);
+      this.save();
   }
 
   // --- Auth ---
@@ -238,17 +343,30 @@ class LocalDatabase {
     return this.payments.filter(p => p.patientId === patientId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 
-  addPayment(payment: Omit<Payment, 'id'>): Payment {
-    const newPayment: Payment = { ...payment, id: Math.random().toString(36).substr(2, 9) };
+  addPayment(payment: Omit<Payment, 'id' | 'status'>): Payment {
+    const newPayment: Payment = { 
+        ...payment, 
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'completed'
+    };
     this.payments.unshift(newPayment);
     this.save();
     return newPayment;
   }
 
+  cancelPayment(id: string): void {
+      const index = this.payments.findIndex(p => p.id === id);
+      if (index !== -1) {
+          this.payments[index] = { ...this.payments[index], status: 'cancelled' };
+          this.save();
+      }
+  }
+
   // Helper for simple Debt calculation (Total Cost - Total Paid)
   getPatientBalance(patientId: string): { totalCost: number, totalPaid: number, debt: number } {
     const treatments = this.treatments.filter(t => t.patientId === patientId && t.status !== 'Planificado');
-    const payments = this.payments.filter(p => p.patientId === patientId);
+    // Only count payments that are not cancelled
+    const payments = this.payments.filter(p => p.patientId === patientId && p.status !== 'cancelled');
 
     const totalCost = treatments.reduce((acc, curr) => acc + curr.cost, 0);
     const totalPaid = payments.reduce((acc, curr) => acc + curr.amount, 0);
@@ -317,37 +435,19 @@ class LocalDatabase {
   }
 
   getStats(): { income: number; patients: number; todayApps: number } {
-    const income = this.payments.reduce((acc, curr) => acc + curr.amount, 0);
-    const today = new Date().toDateString();
-    const todayApps = this.appointments.filter(a => new Date(a.date).toDateString() === today).length;
+    // Only count active payments
+    const income = this.payments
+        .filter(p => p.status !== 'cancelled')
+        .reduce((acc, curr) => acc + curr.amount, 0);
+        
+    const todayStr = new Date().toDateString();
+    const todayApps = this.appointments.filter(a => new Date(a.date).toDateString() === todayStr).length;
 
     return {
       income,
       patients: this.patients.length,
       todayApps
     };
-  }
-
-  getDailyIncomeStats(): { name: string, ingresos: number, pacientes: number }[] {
-    const days = [];
-    const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
-    
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dayStr = d.toDateString(); 
-      
-      const dailyPayments = this.payments.filter(p => new Date(p.date).toDateString() === dayStr);
-      const total = dailyPayments.reduce((acc, curr) => acc + curr.amount, 0);
-      const uniquePatients = new Set(dailyPayments.map(p => p.patientId)).size;
-
-      days.push({
-        name: dayNames[d.getDay()],
-        ingresos: total,
-        pacientes: uniquePatients
-      });
-    }
-    return days;
   }
 }
 

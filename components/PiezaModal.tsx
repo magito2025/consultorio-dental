@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PiezaDental } from '../types';
+import { PiezaDental, PRECIOS } from '../types';
 
 interface Props {
   pieza: PiezaDental;
@@ -10,10 +10,9 @@ interface Props {
 const PiezaModal: React.FC<Props> = ({ pieza, onSave, onClose }) => {
   const [estado, setEstado] = useState(pieza.estado);
   const [notas, setNotas] = useState(pieza.notas);
-  const [precio, setPrecio] = useState(pieza.precio);
 
   const handleSave = () => {
-    onSave({ ...pieza, estado, notas, precio: Number(precio) });
+    onSave({ ...pieza, estado, notas, precio: PRECIOS[estado] || 0 });
     onClose();
   };
 
@@ -29,16 +28,12 @@ const PiezaModal: React.FC<Props> = ({ pieza, onSave, onClose }) => {
           <option value="obturado">Obturado</option>
           <option value="corona">Corona</option>
           <option value="extraccion">Extracción</option>
-          <option value="puente">Puente</option>
           <option value="rx">Radiografía</option>
           <option value="ausente">Ausente</option>
         </select>
 
         <label className="block mb-2 text-sm">Notas</label>
-        <textarea className="w-full mb-3" rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} />
-
-        <label className="block mb-2 text-sm">Precio (Bs)</label>
-        <input type="number" className="w-full mb-4" value={precio} onChange={(e) => setPrecio(e.target.value)} />
+        <textarea className="w-full mb-4" rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} />
 
         <div className="flex justify-end gap-2">
           <button className="btn-secondary" onClick={onClose}>Cancelar</button>

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { Patient, TreatmentStatus, PaymentMethod } from '../types';
+import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem } from '../types';
 import { 
   X, Stethoscope, Save, DollarSign, Calendar as CalendarIcon, 
-  CheckCircle2, AlertCircle, ChevronRight, Wallet, Clock, Activity 
+  CheckCircle2, AlertCircle, ChevronRight, Wallet, Clock, Activity, Zap
 } from 'lucide-react';
 
 interface IntegralAttentionModalProps {
@@ -13,21 +13,11 @@ interface IntegralAttentionModalProps {
   onSuccess: () => void;
 }
 
-const PROCEDURES_PRICING: {[key: string]: number} = {
-    "Consulta General": 100,
-    "Limpieza Dental": 250,
-    "Endodoncia": 800,
-    "Extracción Simple": 200,
-    "Extracción Muela Juicio": 500,
-    "Blanqueamiento": 600,
-    "Ortodoncia (Mensualidad)": 350,
-    "Prótesis": 1500,
-    "Implante": 3500,
-    "Curación": 150
-};
-
 const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient, onClose, onSuccess }) => {
   // --- STATE ---
+  // Data
+  const [availableProcedures, setAvailableProcedures] = useState<ProcedureItem[]>([]);
+
   // Clinical
   const [procedure, setProcedure] = useState('');
   const [description, setDescription] = useState('');
@@ -50,10 +40,18 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
 
   // Effects
   useEffect(() => {
-    if (procedure && PROCEDURES_PRICING[procedure]) {
-        setTotalCost(PROCEDURES_PRICING[procedure]);
+      setAvailableProcedures(db.getProcedures());
+  }, []);
+
+  useEffect(() => {
+    // Find price for selected procedure
+    if (procedure) {
+        const found = availableProcedures.find(p => p.name === procedure);
+        if (found) {
+            setTotalCost(found.price);
+        }
     }
-  }, [procedure]);
+  }, [procedure, availableProcedures]);
 
   const handleSave = () => {
     if (!procedure) return;
@@ -85,29 +83,33 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
   const inputClass = "w-full p-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all";
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         
-        {/* Header */}
-        <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-4 flex justify-between items-center">
-            <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-lg">
+        {/* Header - Consistent with Agendar Cita */}
+        <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+           <div className="flex items-center gap-3 text-indigo-700 dark:text-indigo-300">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                <Zap size={24} />
+              </div>
+              <div>
+                 <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">Atención Integral</h2>
+                 <p className="text-xs text-slate-400">Tratamiento, Cobro y Agenda en un paso</p>
+              </div>
+           </div>
+           
+           {/* Patient Quick Info in Header */}
+           <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-full border border-slate-200 dark:border-slate-600">
+                <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">
                     {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
                 </div>
-                <div>
-                    <h2 className="text-xl font-bold leading-none">{patient.firstName} {patient.lastName}</h2>
-                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-                        <span>CI: {patient.dni}</span>
-                        <span className="w-1 h-1 bg-slate-500 rounded-full"></span>
-                        <span className={`${currentDebt > 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}`}>
-                            Saldo Actual: Bs {currentDebt.toLocaleString()}
-                        </span>
-                    </p>
-                </div>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-            </button>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{patient.firstName} {patient.lastName}</span>
+                <span className="text-xs text-slate-400 border-l border-slate-300 pl-2 ml-1">
+                    Saldo: <span className={currentDebt > 0 ? 'text-red-500 font-bold' : 'text-emerald-500'}>Bs {currentDebt}</span>
+                </span>
+           </div>
+
+           <button onClick={onClose} className="text-slate-400 hover:text-red-500 hover:bg-slate-100 p-2 rounded-full transition-colors"><X size={20} /></button>
         </div>
 
         {/* Content: 3 Columns Grid */}
@@ -132,7 +134,7 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
                                 autoFocus
                             />
                             <datalist id="procedures-list">
-                                {Object.keys(PROCEDURES_PRICING).map(p => <option key={p} value={p} />)}
+                                {availableProcedures.map(p => <option key={p.id} value={p.name} />)}
                             </datalist>
                         </div>
                         

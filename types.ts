@@ -1,7 +1,8 @@
 
 export enum UserRole {
-  OWNER = 'OWNER',
-  SECRETARY = 'SECRETARY'
+  PRINCIPAL = 'PRINCIPAL', // Dueño / Admin Total
+  DOCTOR = 'DOCTOR',       // Odontólogo (Configura sus precios/datos)
+  STAFF = 'STAFF'          // Secretaria / Asistente
 }
 
 export interface User {
@@ -22,21 +23,38 @@ export interface Reminder {
   createdById: string; // New field
 }
 
+export interface Medication {
+  name: string;
+  dosage: string;
+  frequency: string;
+}
+
+export interface ProcedureItem {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface Patient {
   id: string;
   firstName: string;
   lastName: string;
-  dni: string; // Carnet de identidad
+  dni: string; // Carnet de identidad (CI)
   email?: string;
   phone?: string;
-  allergies: string;
+  allergies: string; // Stored as comma separated string for simplicity, or we can parse it
   generalDescription: string;
   medicalHistory: string[]; // Antecedentes (Cardio, etc.)
+  currentMedications?: Medication[]; // New Field
   // New fields
   age?: string;
   weight?: string;
   height?: string;
   createdAt: string;
+  // Extended Demographic Data
+  gender?: 'Masculino' | 'Femenino' | 'Otro';
+  civilStatus?: 'Soltero/a' | 'Casado/a' | 'Divorciado/a' | 'Viudo/a' | 'Unión Libre';
+  occupation?: string;
 }
 
 export interface Appointment {
@@ -74,6 +92,7 @@ export interface Payment {
   date: string;
   method: PaymentMethod;
   notes?: string;
+  status: 'completed' | 'cancelled'; // Added status field
 }
 
 export interface DashboardStats {

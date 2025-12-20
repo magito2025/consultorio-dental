@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { Patient, TreatmentStatus, PaymentMethod } from '../types';
+import { Patient, TreatmentStatus, PaymentMethod, ProcedureItem } from '../types';
 import { 
   X, Search, FileText, DollarSign, Save, Stethoscope, 
-  CalendarPlus, Clock, CheckCircle2, Wallet, 
+  CalendarPlus, Clock, CheckCircle2, Wallet, Calendar, ChevronRight
 } from 'lucide-react';
 
 interface TreatmentModalProps {
@@ -17,12 +17,13 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [availableProcedures, setAvailableProcedures] = useState<ProcedureItem[]>([]);
   
   // Form Fields
   const [procedure, setProcedure] = useState('');
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState('');
-  const [status, setStatus] = useState<TreatmentStatus>('Planificado');
+  const [status, setStatus] = useState<TreatmentStatus>('Planificado'); // Default to Planificado as requested
   
   // Dynamic Date/Time Fields
   const [customDate, setCustomDate] = useState(new Date().toISOString().split('T')[0]);
@@ -38,6 +39,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
   useEffect(() => {
     const allPatients = db.getPatients();
     setPatients(allPatients);
+    setAvailableProcedures(db.getProcedures());
     
     if (preSelectedPatientId) {
         const found = allPatients.find(p => p.id === preSelectedPatientId);
@@ -52,10 +54,31 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
     }
   }, [status, cost]);
 
+  // Auto-fill cost when procedure is selected from list
+  useEffect(() => {
+      const found = availableProcedures.find(p => p.name === procedure);
+      if(found) {
+          setCost(found.price.toString());
+      }
+  }, [procedure, availableProcedures]);
+
   const filteredPatients = patients.filter(p => 
     `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.dni.includes(searchTerm)
   );
+
+  // --- SMART DATE HELPERS ---
+  const handleQuickDate = (type: 'tomorrow' | 'nextWeek' | 'nextMonth') => {
+      const d = new Date();
+      if (type === 'tomorrow') d.setDate(d.getDate() + 1);
+      if (type === 'nextWeek') d.setDate(d.getDate() + 7);
+      if (type === 'nextMonth') d.setMonth(d.getMonth() + 1);
+      setCustomDate(d.toISOString().split('T')[0]);
+  };
+
+  const handleQuickTime = (time: string) => {
+      setCustomTime(time);
+  };
 
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,23 +89,45 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
   const confirmAndSubmit = () => {
     if (!selectedPatient) return;
     
-    // Construct the final date object based on custom inputs or current time
-    let finalDate = new Date().toISOString();
-    if (status === 'En Proceso' || status === 'Completado') {
-        const combined = new Date(`${customDate}T${customTime}`);
-        finalDate = combined.toISOString();
-    }
+    // Construct the final date object
+    const combined = new Date(`${customDate}T${customTime}`);
+    const finalDate = combined.toISOString();
 
-    // 1. Save Treatment
-    db.addTreatment({
-        patientId: selectedPatient.id,
-        patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
-        procedure,
-        description,
-        cost: parseFloat(cost),
-        status,
-        date: finalDate
-    });
+    // 1. Save Treatment / Appointment
+    // Note: If 'Planificado', this acts as an Appointment in our logic, or a Treatment with future date.
+    // The DB service creates a Treatment record. 
+    // Ideally, for 'Planificado', we might want to create an *Appointment* record too, 
+    // but based on current DB structure, we use Treatment status 'Planificado' or map it.
+    // For this update, we will follow the existing pattern: Add Treatment. 
+    // If the system needs a separate Appointment entity for the Calendar, we usually handle that in DB service.
+    // *Correction*: The prompt implies this is "Agendar Cita". 
+    // In `db.ts`, `saveIntegralVisit` adds an appointment. 
+    // Let's ensure if it is 'Planificado', we add an Appointment specifically for the calendar.
+    
+    if (status === 'Planificado') {
+        db.addAppointment({
+            patientId: selectedPatient.id,
+            patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
+            date: finalDate,
+            type: 'Consulta', // Default type
+            status: 'Pendiente',
+            notes: `${procedure} - ${description}`
+        });
+        
+        // Optionally also add a treatment record as "Planned" if we want to track the financial projection
+        // For now, let's just add the Appointment to show up in Agenda.
+    } else {
+        // En Proceso / Completado
+        db.addTreatment({
+            patientId: selectedPatient.id,
+            patientName: `${selectedPatient.firstName} ${selectedPatient.lastName}`,
+            procedure,
+            description,
+            cost: parseFloat(cost),
+            status,
+            date: finalDate
+        });
+    }
 
     // 2. If Completed and Payment Amount > 0, Save Payment automatically
     if (status === 'Completado' && paymentAmount && parseFloat(paymentAmount) > 0) {
@@ -100,11 +145,6 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
     onClose();
   };
 
-  const proceduresList = [
-      "Consulta General", "Limpieza Dental", "Endodoncia", "Extracción Simple", "Extracción Muela Juicio", 
-      "Blanqueamiento", "Ortodoncia (Mensualidad)", "Prótesis", "Implante", "Curación"
-  ];
-
   const inputClass = "w-full p-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none placeholder:text-slate-400 transition-all";
 
   // --- CONFIRMATION VIEW ---
@@ -117,10 +157,10 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
                 : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
             }`}>
-               {status === 'Completado' ? <CheckCircle2 size={32} /> : <Stethoscope size={32} />}
+               {status === 'Completado' ? <CheckCircle2 size={32} /> : <CalendarPlus size={32} />}
             </div>
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                {status === 'Completado' ? '¿Finalizar y Cobrar?' : '¿Guardar Registro?'}
+                {status === 'Planificado' ? '¿Confirmar Cita?' : status === 'Completado' ? '¿Finalizar y Cobrar?' : '¿Guardar Registro?'}
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Confirme los datos antes de guardar.</p>
             
@@ -130,30 +170,18 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                    <span className="text-sm font-bold text-slate-800 dark:text-white text-right">{selectedPatient.firstName} {selectedPatient.lastName}</span>
                 </div>
                 <div className="flex justify-between">
+                   <span className="text-xs text-slate-400 uppercase">Fecha</span>
+                   <span className="text-sm font-medium text-slate-800 dark:text-white text-right">{new Date(customDate).toLocaleDateString()} {customTime}</span>
+                </div>
+                <div className="flex justify-between">
                    <span className="text-xs text-slate-400 uppercase">Procedimiento</span>
                    <span className="text-sm font-medium text-slate-800 dark:text-white text-right">{procedure}</span>
                 </div>
-                
-                {status === 'En Proceso' && (
-                    <div className="flex justify-between">
-                        <span className="text-xs text-slate-400 uppercase">Horario</span>
-                        <span className="text-sm font-medium text-slate-800 dark:text-white">{customDate} {customTime}</span>
-                    </div>
-                )}
 
                 <div className="flex justify-between border-t border-slate-200 dark:border-slate-600 pt-2 mt-2">
-                   <span className="text-xs text-slate-400 uppercase font-bold">Costo Total</span>
+                   <span className="text-xs text-slate-400 uppercase font-bold">Costo Estimado</span>
                    <span className="text-lg font-bold text-indigo-600">Bs {parseFloat(cost).toLocaleString()}</span>
                 </div>
-
-                {status === 'Completado' && paymentAmount && (
-                    <div className="flex justify-between bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg -mx-2 mt-2">
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold flex items-center gap-1">
-                            <Wallet size={12} /> Se Cobrará
-                        </span>
-                        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Bs {parseFloat(paymentAmount).toLocaleString()}</span>
-                    </div>
-                )}
             </div>
 
             <div className="flex gap-3">
@@ -169,7 +197,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                      status === 'Completado' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'
                  }`}
                >
-                 {status === 'Completado' ? 'Cobrar' : 'Guardar'}
+                 {status === 'Planificado' ? 'Agendar' : 'Guardar'}
                </button>
             </div>
          </div>
@@ -186,11 +214,11 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
         <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
            <div className="flex items-center gap-3 text-indigo-700 dark:text-indigo-300">
               <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
-                <Stethoscope size={24} />
+                <CalendarPlus size={24} />
               </div>
               <div>
-                 <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">Nueva Consulta / Tratamiento</h2>
-                 <p className="text-xs text-slate-400">Registre la actividad clínica</p>
+                 <h2 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">Agendar Cita</h2>
+                 <p className="text-xs text-slate-400">Nueva Consulta / Tratamiento</p>
               </div>
            </div>
            <button onClick={onClose} className="text-slate-400 hover:text-red-500 hover:bg-slate-100 p-2 rounded-full transition-colors"><X size={20} /></button>
@@ -217,7 +245,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                        <button 
                          type="button" 
                          onClick={() => setSelectedPatient(null)}
-                         className="shrink-0 px-3 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-xs font-medium hover:text-red-500 transition-colors shadow-sm"
+                         className="shrink-0 px-3 py-1.5 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 transition-colors shadow-sm"
                        >
                          Cambiar
                        </button>
@@ -229,7 +257,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                        </div>
                        <input 
                            type="text"
-                           placeholder="Buscar por nombre o DNI..."
+                           placeholder="Buscar por nombre o CI..."
                            value={searchTerm}
                            onChange={e => setSearchTerm(e.target.value)}
                            className="w-full pl-10 p-4 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none placeholder:text-slate-400 shadow-sm transition-all"
@@ -254,7 +282,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
 
             {/* 2. Visual Status Selector */}
             <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estado del Tratamiento</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estado / Acción</label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     
                     {/* Option: Planificado (Agendar) */}
@@ -311,7 +339,50 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                 </div>
             </div>
 
-            {/* 3. Treatment Details (Main Fields) */}
+            {/* 3. DATE & TIME (Promoted for 'Planificado') */}
+            {status === 'Planificado' && (
+                <div className="bg-indigo-50 dark:bg-indigo-900/10 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800 animate-slide-down">
+                    <h4 className="text-sm font-bold text-indigo-800 dark:text-indigo-300 uppercase mb-3 flex items-center gap-2 tracking-wide">
+                        <Calendar size={16} /> Configurar Fecha y Hora
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Date Section */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-indigo-700 dark:text-indigo-400 uppercase">Fecha Cita</label>
+                            <input 
+                                type="date"
+                                value={customDate}
+                                onChange={e => setCustomDate(e.target.value)}
+                                className={inputClass}
+                            />
+                            <div className="flex gap-2 mt-1">
+                                <button type="button" onClick={() => handleQuickDate('tomorrow')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">Mañana</button>
+                                <button type="button" onClick={() => handleQuickDate('nextWeek')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">Próx. Semana</button>
+                                <button type="button" onClick={() => handleQuickDate('nextMonth')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">Próx. Mes</button>
+                            </div>
+                        </div>
+                        
+                        {/* Time Section */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-indigo-700 dark:text-indigo-400 uppercase">Hora</label>
+                            <input 
+                                type="time"
+                                value={customTime}
+                                onChange={e => setCustomTime(e.target.value)}
+                                className={inputClass}
+                            />
+                            <div className="flex gap-2 mt-1 flex-wrap">
+                                <button type="button" onClick={() => handleQuickTime('09:00')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">09:00</button>
+                                <button type="button" onClick={() => handleQuickTime('10:30')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">10:30</button>
+                                <button type="button" onClick={() => handleQuickTime('15:00')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">15:00</button>
+                                <button type="button" onClick={() => handleQuickTime('17:00')} className="text-[10px] px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100">17:00</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 4. Treatment Details (Main Fields) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Procedimiento</label>
@@ -324,11 +395,11 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                         placeholder="Ej. Endodoncia"
                     />
                     <datalist id="procedures">
-                        {proceduresList.map(p => <option key={p} value={p} />)}
+                        {availableProcedures.map(p => <option key={p.id} value={p.name} />)}
                     </datalist>
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Costo (Bs)</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Costo Estimado (Bs)</label>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <DollarSign size={16} className="text-slate-400" />
@@ -359,7 +430,7 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                 />
             </div>
 
-            {/* 4. EXPANDABLE: Payment Module (Only for Completado - MOVED UP) */}
+            {/* 5. EXPANDABLE: Payment Module (Only for Completado - MOVED UP) */}
             {status === 'Completado' && (
                 <div className="bg-emerald-50 dark:bg-emerald-900/20 p-5 rounded-xl border border-emerald-100 dark:border-emerald-800 animate-slide-down">
                     <div className="flex items-center justify-between mb-4">
@@ -410,8 +481,8 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                 </div>
             )}
 
-            {/* 5. EXPANDABLE: Date/Time (Only for En Proceso / Completado - MOVED DOWN) */}
-            {(status === 'En Proceso' || status === 'Completado') && (
+            {/* 6. EXPANDABLE: Date/Time (Only for En Proceso / Completado - Standard) */}
+            {status !== 'Planificado' && (
                 <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-800 animate-fade-in">
                     <h4 className="text-xs font-bold text-amber-700 dark:text-amber-500 uppercase mb-3 flex items-center gap-2">
                         <Clock size={14} /> Fecha y Hora del Registro
@@ -457,11 +528,13 @@ const TreatmentModal: React.FC<TreatmentModalProps> = ({ onClose, onSuccess, pre
                 className={`px-6 py-2.5 text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 ${
                     status === 'Completado' 
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700' 
-                    : 'bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700'
+                    : status === 'Planificado'
+                    ? 'bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700'
+                    : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700'
                 }`}
              >
                 {status === 'Completado' ? <CheckCircle2 size={18} /> : <Save size={18} />}
-                {status === 'Completado' ? 'Finalizar y Guardar' : 'Guardar Tratamiento'}
+                {status === 'Planificado' ? 'Confirmar Cita' : 'Guardar'}
              </button>
         </div>
       </div>

@@ -5,11 +5,12 @@ import { db } from '../services/db';
 import PaymentModal from './PaymentModal';
 import IntegralAttentionModal from './IntegralAttentionModal';
 import PatientForm from './PatientForm';
+import TreatmentModal from './TreatmentModal'; // Imported
 import { 
-  Users, Calendar, DollarSign, UserPlus, FileText, CreditCard, 
+  Users, Calendar, DollarSign, UserPlus, CreditCard, 
   Clock, Bell, Plus, Trash2, CheckCircle2, Circle, Activity, 
   History, Stethoscope, Search, Zap, CalendarRange, BadgeDollarSign, ChevronRight,
-  Sun, Moon, HelpCircle, Info, X, ArrowRight
+  HelpCircle, Info, X, CalendarPlus
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -19,7 +20,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [greeting, setGreeting] = useState('');
-  const [stats, setStats] = useState({ income: 0, patients: 0, todayApps: 0 });
+  const [stats, setStats] = useState({ income: 0, patients: 0, todayApps: 0, monthlyIncome: 0, dailyIncome: 0 });
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [newReminder, setNewReminder] = useState('');
@@ -31,6 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   // Modals & Search
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false); // Reuse Treatment Modal logic
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -45,8 +47,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const loadData = () => {
-    const s = db.getStats();
-    setStats(s);
+    const allStats = db.getStats();
+    
+    // Calculate Specific Incomes
+    const allPayments = db.getPayments().filter(p => p.status !== 'cancelled');
+    const now = new Date();
+    
+    const monthlyIncome = allPayments.filter(p => {
+        const d = new Date(p.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((acc, curr) => acc + curr.amount, 0);
+
+    const dailyIncome = allPayments.filter(p => {
+        const d = new Date(p.date);
+        return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((acc, curr) => acc + curr.amount, 0);
+
+    setStats({ 
+        ...allStats, 
+        monthlyIncome, 
+        dailyIncome 
+    });
+
     setAppointments(db.getAppointments());
     setReminders(db.getReminders());
     setRecentTreated(db.getRecentTreatedPatients());
@@ -137,18 +159,60 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
     }).format(date);
   };
 
-  // Filter future appointments
-  const upcomingAppointments = appointments.filter(a => a.status === 'Pendiente' && new Date(a.date) >= new Date(new Date().setHours(0,0,0,0))).slice(0, 5);
+  // Filter future appointments: Start of today
+  const startOfToday = new Date();
+  startOfToday.setHours(0,0,0,0);
+  
+  const upcomingAppointments = appointments
+    .filter(a => new Date(a.date) >= startOfToday && a.status === 'Pendiente')
+    .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 5);
+
+  // --- KPI LOGIC BASED ON ROLE ---
+  const renderRoleBasedKPI = () => {
+      if (user.role === UserRole.PRINCIPAL) {
+          return (
+            <div className="flex-1 min-w-[120px] px-2 flex flex-col items-center animate-fade-in">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Ingresos del Mes</span>
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <DollarSign size={16} strokeWidth={3} />
+                    <span className="text-xl font-bold tracking-tight">Bs {formatCurrency(stats.monthlyIncome)}</span>
+                </div>
+            </div>
+          );
+      } else if (user.role === UserRole.STAFF) {
+          return (
+            <div className="flex-1 min-w-[120px] px-2 flex flex-col items-center animate-fade-in">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Caja Diaria (Hoy)</span>
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                    <DollarSign size={16} strokeWidth={3} />
+                    <span className="text-xl font-bold tracking-tight">Bs {formatCurrency(stats.dailyIncome)}</span>
+                </div>
+            </div>
+          );
+      } else { // DOCTOR
+          // For doctor, show total patients attended (using total patients for now as mock, or filtered if possible)
+          return (
+            <div className="flex-1 min-w-[120px] px-2 flex flex-col items-center animate-fade-in">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Pacientes Atendidos</span>
+                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                    <Users size={16} strokeWidth={3} />
+                    <span className="text-xl font-bold tracking-tight">{recentTreated.length}</span>
+                </div>
+            </div>
+          );
+      }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       
-      {/* 1. UNIFIED HEADER HERO SECTION (MODERN DARK THEME) */}
+      {/* 1. UNIFIED HEADER HERO SECTION */}
       <div className="relative rounded-3xl shadow-xl overflow-hidden p-8 md:p-10 flex flex-col md:flex-row justify-between items-center gap-6 text-white transition-all transform hover:scale-[1.01] duration-500">
          {/* Dynamic Background */}
          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-0"></div>
          
-         {/* Modern Gradient Overlay/Blobs */}
+         {/* Modern Gradient Overlay */}
          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none animate-pulse"></div>
          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/4 pointer-events-none"></div>
          
@@ -175,6 +239,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
          </div>
       </div>
 
+      {/* MINIMALIST KPI SUMMARY BAR */}
+      <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm px-6 py-4 flex flex-wrap justify-around items-center gap-4 text-center divide-x divide-slate-100 dark:divide-slate-700">
+          
+          {/* Dynamic KPI based on Role */}
+          {renderRoleBasedKPI()}
+
+          <div className="flex-1 min-w-[120px] px-2 flex flex-col items-center">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Total Pacientes</span>
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                  <Users size={16} strokeWidth={3} />
+                  <span className="text-xl font-bold tracking-tight">{stats.patients}</span>
+              </div>
+          </div>
+
+          <div className="flex-1 min-w-[120px] px-2 flex flex-col items-center">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Citas Hoy</span>
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                  <Calendar size={16} strokeWidth={3} />
+                  <span className="text-xl font-bold tracking-tight">{stats.todayApps}</span>
+              </div>
+          </div>
+      </div>
+
       {/* 2. OPERATIONAL CENTER (Search + Distinctive Action Cards) */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
           
@@ -183,9 +270,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
              {/* Header */}
              <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2">
-                    <Stethoscope size={20} className="text-primary" />
+                    <Zap size={20} className="text-primary" />
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        Atención Clínica Integral
+                        Nueva Consulta / Nuevo paciente
                     </label>
                 </div>
                 <button 
@@ -259,20 +346,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           {/* B. SECONDARY ACTIONS (DISTINCTIVE CARDS) - SPAN 1 (Grid inside) */}
           <div className="xl:col-span-1 grid grid-cols-2 gap-4 h-full min-h-[140px]">
               
-              {/* Agenda Card */}
+              {/* Agenda / New Appointment Card */}
               <button 
-                onClick={() => onNavigate('appointments')}
+                onClick={() => setShowNewAppointmentModal(true)}
                 className="relative overflow-hidden rounded-2xl p-4 flex flex-col justify-between h-full bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md hover:shadow-lg hover:-translate-y-1 transition-all group"
               >
                   <div className="absolute top-0 right-0 p-3 opacity-20 transform translate-x-2 -translate-y-2">
-                      <CalendarRange size={50} />
+                      <CalendarPlus size={50} />
                   </div>
                   <div className="relative z-10 bg-white/20 w-fit p-2 rounded-lg backdrop-blur-sm">
-                      <CalendarRange size={20} />
+                      <CalendarPlus size={20} />
                   </div>
                   <div className="relative z-10 mt-auto pt-4">
-                      <h3 className="font-bold text-base leading-tight">Agenda</h3>
-                      <p className="text-[10px] text-indigo-100 opacity-90 mt-0.5">Gestión de Citas</p>
+                      <h3 className="font-bold text-base leading-tight">Agendar Cita</h3>
+                      <p className="text-[10px] text-indigo-100 opacity-90 mt-0.5">Nueva Consulta / Trat.</p>
                   </div>
               </button>
 
@@ -294,41 +381,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
               </button>
 
           </div>
-      </div>
-
-      {/* KPI Cards (Stats) - Cleaned */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {user.role === UserRole.OWNER && (
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-lg text-emerald-600 dark:text-emerald-400">
-                <DollarSign size={24} />
-              </div>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Ingresos Totales (Bs)</p>
-            <h3 className="text-3xl font-bold text-slate-800 dark:text-white">Bs {formatCurrency(stats.income)}</h3>
-          </div>
-        )}
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400">
-              <Users size={24} />
-            </div>
-          </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Pacientes Registrados</p>
-          <h3 className="text-3xl font-bold text-slate-800 dark:text-white">{stats.patients}</h3>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="bg-rose-100 dark:bg-rose-900/30 p-2 rounded-lg text-rose-600 dark:text-rose-400">
-              <Calendar size={24} />
-            </div>
-          </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Citas Pendientes Hoy</p>
-          <h3 className="text-3xl font-bold text-slate-800 dark:text-white">{stats.todayApps}</h3>
-        </div>
       </div>
 
       {/* Main Content Grid */}
@@ -526,24 +578,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           />
       )}
 
+      {/* NEW APPOINTMENT MODAL (Reusing TreatmentModal) */}
+      {showNewAppointmentModal && (
+          <TreatmentModal 
+             onClose={() => setShowNewAppointmentModal(false)}
+             onSuccess={() => {
+                 loadData();
+                 setShowNewAppointmentModal(false);
+             }}
+          />
+      )}
+
       {/* QUICK NEW PATIENT FORM (INLINE) */}
       {showNewPatientForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl max-h-[90vh] overflow-y-auto">
-                  <PatientForm 
-                    onCancel={() => setShowNewPatientForm(false)}
-                    onSuccess={() => {
-                        // After creating, immediately find it and open attention modal
-                        const newPatients = db.searchPatients(searchQuery); // Search again with same query
-                        if(newPatients.length > 0) {
-                            setSelectedPatientForAttention(newPatients[0]);
-                        }
-                        setShowNewPatientForm(false);
-                        loadData();
-                    }}
-                  />
-              </div>
-          </div>
+          <PatientForm 
+            initialName={searchQuery}
+            onCancel={() => setShowNewPatientForm(false)}
+            onSuccess={() => {
+                // After creating, immediately find it and open attention modal
+                const newPatients = db.searchPatients(searchQuery.split(' ')[0]); // Search by first name or whatever part
+                // Small delay to ensure DB write
+                setTimeout(() => {
+                    // Logic to find just added patient is complex without return ID, 
+                    // for now we close form and user can search.
+                    // Or ideally db.addPatient returns the new patient.
+                    // The PatientForm onSuccess calls loadData() in parent usually.
+                    // Here we just refresh data
+                    loadData();
+                    setShowNewPatientForm(false);
+                }, 100);
+            }}
+          />
       )}
 
       {/* HELP MODAL */}

@@ -1,21 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, ProcedureItem } from '../types';
 import { db } from '../services/db';
 import { 
-  Moon, 
-  Sun, 
-  Shield, 
-  User as UserIcon, 
-  Clock, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Save, 
-  X,
-  Lock,
-  Upload,
-  Image as ImageIcon
+  Moon, Sun, Shield, User as UserIcon, Clock, Plus, Edit2, 
+  Trash2, Save, X, Lock, Database, Tag, FileText, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -29,21 +18,56 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   
-  // Form State
+  // Data Management Accordion State
+  const [activeSection, setActiveSection] = useState<'procedures' | 'reasons' | null>(null);
+  const accordionRef = useRef<HTMLDivElement>(null);
+
+  // Data State
+  const [procedures, setProcedures] = useState<ProcedureItem[]>([]);
+  const [reasons, setReasons] = useState<string[]>([]);
+  
+  // Forms for Data
+  const [newProcName, setNewProcName] = useState('');
+  const [newProcPrice, setNewProcPrice] = useState('');
+  const [newReason, setNewReason] = useState('');
+
+  // User Form State
   const [formName, setFormName] = useState('');
   const [formUsername, setFormUsername] = useState('');
   const [formPassword, setFormPassword] = useState('');
-  const [formRole, setFormRole] = useState<UserRole>(UserRole.SECRETARY);
-
-  // Logo State
-  const [customLogo, setCustomLogo] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formRole, setFormRole] = useState<UserRole>(UserRole.STAFF);
 
   useEffect(() => {
     setUsers(db.getUsers());
-    setCustomLogo(db.getLogo());
+    refreshData();
+
+    // Click outside listener for accordion
+    const handleClickOutside = (event: MouseEvent) => {
+        if (accordionRef.current && !accordionRef.current.contains(event.target as Node)) {
+            setActiveSection(null);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
+  const refreshData = () => {
+      setProcedures(db.getProcedures());
+      setReasons(db.getConsultationReasons());
+  };
+
+  // --- Handlers for Data Accordion ---
+  const toggleSection = (section: 'procedures' | 'reasons') => {
+      if (activeSection === section) {
+          setActiveSection(null);
+      } else {
+          setActiveSection(section);
+      }
+  };
+
+  // --- Handlers for User Management ---
   const handleOpenModal = (userToEdit?: User) => {
     if (userToEdit) {
       setEditingUser(userToEdit);
@@ -56,7 +80,7 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
       setFormName('');
       setFormUsername('');
       setFormPassword('');
-      setFormRole(UserRole.SECRETARY);
+      setFormRole(UserRole.STAFF);
     }
     setShowUserModal(true);
   };
@@ -89,32 +113,38 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
     }
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        db.saveLogo(base64String);
-        setCustomLogo(base64String);
-        // Dispatch a custom event or force a reload to update other components if needed
-        // For now, a reload is the simplest way to propagate this global change without context/redux
-        if(confirm("Logo actualizado. Se recargará la página para aplicar cambios.")) {
-            window.location.reload();
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+  // --- Handlers for Data Management ---
+  const handleAddProcedure = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(newProcName && newProcPrice) {
+          db.addProcedure({ name: newProcName, price: parseFloat(newProcPrice) });
+          setNewProcName('');
+          setNewProcPrice('');
+          refreshData();
+      }
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
+  const handleDeleteProcedure = (id: string) => {
+      if(confirm('¿Eliminar este tratamiento de las sugerencias?')) {
+          db.removeProcedure(id);
+          refreshData();
+      }
   };
 
-  const removeLogo = () => {
-      db.saveLogo('');
-      setCustomLogo(null);
-      window.location.reload();
+  const handleAddReason = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(newReason) {
+          db.addConsultationReason(newReason);
+          setNewReason('');
+          refreshData();
+      }
+  };
+
+  const handleDeleteReason = (reason: string) => {
+      if(confirm('¿Eliminar este motivo de las sugerencias?')) {
+          db.removeConsultationReason(reason);
+          refreshData();
+      }
   };
 
   // Consistent input class
@@ -129,83 +159,157 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
         </div>
       </div>
 
-      {/* 1. Theme & Appearance Settings */}
+      {/* 1. Appearance */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Apariencia y Marca</h3>
-        
-        <div className="space-y-6">
-            {/* Dark Mode Toggle */}
-            <div className="flex items-center justify-between pb-6 border-b border-slate-100 dark:border-slate-700">
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-500 text-white' : 'bg-amber-400 text-white'}`}>
-                    {isDarkMode ? <Moon size={20} /> : <Sun size={20} />}
-                    </div>
-                    <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-200">Tema del Sistema</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{isDarkMode ? 'Modo Oscuro activado' : 'Modo Claro activado'}</p>
-                    </div>
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Apariencia</h3>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-indigo-500 text-white' : 'bg-amber-400 text-white'}`}>
+                {isDarkMode ? <Moon size={20} /> : <Sun size={20} />}
                 </div>
-                <button 
-                    onClick={toggleTheme}
-                    className={`
-                    relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none
-                    ${isDarkMode ? 'bg-indigo-600' : 'bg-slate-200'}
-                    `}
-                >
-                    <span
-                    className={`
-                        inline-block h-6 w-6 transform rounded-full bg-white transition-transform
-                        ${isDarkMode ? 'translate-x-7' : 'translate-x-1'}
-                    `}
-                    />
-                </button>
-            </div>
-
-            {/* Logo Upload */}
-            <div className="flex items-start justify-between">
-                <div className="flex gap-4">
-                    <div className="w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center overflow-hidden relative">
-                         {customLogo ? (
-                             <img src={customLogo} alt="Logo" className="w-full h-full object-contain p-2" />
-                         ) : (
-                             <ImageIcon className="text-slate-300" size={32} />
-                         )}
-                    </div>
-                    <div>
-                        <p className="font-medium text-slate-700 dark:text-slate-200">Logotipo de la Clínica</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                            Este logo reemplazará al icono por defecto en la pantalla de inicio de sesión y en la barra lateral. Formatos soportados: PNG, JPG, SVG.
-                        </p>
-                        <div className="flex gap-2 mt-3">
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                onChange={handleLogoUpload} 
-                                className="hidden" 
-                                accept="image/*"
-                            />
-                            <button 
-                                onClick={triggerFileInput}
-                                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-2"
-                            >
-                                <Upload size={14} /> Subir Imagen
-                            </button>
-                            {customLogo && (
-                                <button 
-                                    onClick={removeLogo}
-                                    className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 flex items-center gap-2"
-                                >
-                                    <Trash2 size={14} /> Eliminar
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                <div>
+                <p className="font-medium text-slate-700 dark:text-slate-200">Tema del Sistema</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{isDarkMode ? 'Modo Oscuro activado' : 'Modo Claro activado'}</p>
                 </div>
             </div>
+            <button 
+                onClick={toggleTheme}
+                className={`
+                relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none
+                ${isDarkMode ? 'bg-indigo-600' : 'bg-slate-200'}
+                `}
+            >
+                <span
+                className={`
+                    inline-block h-6 w-6 transform rounded-full bg-white transition-transform
+                    ${isDarkMode ? 'translate-x-7' : 'translate-x-1'}
+                `}
+                />
+            </button>
         </div>
       </div>
 
-      {/* 2. User Management (Only for Owner) */}
+      {/* 2. System Data Management (Accordion Style) */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6" ref={accordionRef}>
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                <Database size={20} className="text-primary" />
+                Administrar precios y datos
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Configure las listas desplegables y sugerencias del sistema.
+            </p>
+          </div>
+
+          {(user.role === UserRole.PRINCIPAL || user.role === UserRole.DOCTOR) ? (
+            <div className="space-y-4">
+                
+                {/* Accordion Item 1: Treatments */}
+                <div className={`border rounded-xl overflow-hidden transition-all duration-300 ${activeSection === 'procedures' ? 'border-primary shadow-md bg-slate-50 dark:bg-slate-700/30' : 'border-slate-200 dark:border-slate-600'}`}>
+                    <button 
+                        onClick={() => toggleSection('procedures')}
+                        className="w-full px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <Tag size={18} className="text-slate-500 dark:text-slate-400" />
+                            <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Tratamientos & Precios</span>
+                            <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">{procedures.length} items</span>
+                        </div>
+                        {activeSection === 'procedures' ? <ChevronUp size={20} className="text-primary" /> : <ChevronDown size={20} className="text-slate-400" />}
+                    </button>
+                    
+                    {activeSection === 'procedures' && (
+                        <div className="p-5 border-t border-slate-200 dark:border-slate-700 animate-slide-down">
+                            {/* List */}
+                            <div className="flex-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 p-2 space-y-1 mb-4">
+                                {procedures.map(p => (
+                                    <div key={p.id} className="flex justify-between items-center p-2 rounded-lg border border-slate-100 dark:border-slate-700 group hover:border-red-200 dark:hover:border-red-900/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                        <div>
+                                            <div className="text-sm font-medium text-slate-800 dark:text-white">{p.name}</div>
+                                            <div className="text-xs text-slate-500">Bs {p.price}</div>
+                                        </div>
+                                        <button onClick={() => handleDeleteProcedure(p.id)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 text-red-500 rounded transition-all">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Add Form */}
+                            <form onSubmit={handleAddProcedure} className="flex gap-2">
+                                <input 
+                                    placeholder="Nombre Tratamiento" 
+                                    value={newProcName} 
+                                    onChange={e => setNewProcName(e.target.value)}
+                                    className="flex-1 text-xs p-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-primary outline-none"
+                                />
+                                <input 
+                                    type="number"
+                                    placeholder="Precio" 
+                                    value={newProcPrice} 
+                                    onChange={e => setNewProcPrice(e.target.value)}
+                                    className="w-24 text-xs p-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-primary outline-none"
+                                />
+                                <button type="submit" disabled={!newProcName || !newProcPrice} className="bg-slate-900 dark:bg-primary text-white p-2 rounded-lg disabled:opacity-50 hover:opacity-90">
+                                    <Plus size={16} />
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
+
+                {/* Accordion Item 2: Reasons */}
+                <div className={`border rounded-xl overflow-hidden transition-all duration-300 ${activeSection === 'reasons' ? 'border-primary shadow-md bg-slate-50 dark:bg-slate-700/30' : 'border-slate-200 dark:border-slate-600'}`}>
+                    <button 
+                        onClick={() => toggleSection('reasons')}
+                        className="w-full px-5 py-4 flex items-center justify-between bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <FileText size={18} className="text-slate-500 dark:text-slate-400" />
+                            <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Motivos de Consulta</span>
+                            <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">{reasons.length} items</span>
+                        </div>
+                        {activeSection === 'reasons' ? <ChevronUp size={20} className="text-primary" /> : <ChevronDown size={20} className="text-slate-400" />}
+                    </button>
+                    
+                    {activeSection === 'reasons' && (
+                        <div className="p-5 border-t border-slate-200 dark:border-slate-700 animate-slide-down">
+                            {/* List */}
+                            <div className="flex-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 p-2 space-y-1 mb-4">
+                                {reasons.map((r, idx) => (
+                                    <div key={idx} className="flex justify-between items-center p-2 rounded-lg border border-slate-100 dark:border-slate-700 group hover:border-red-200 dark:hover:border-red-900/50 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                        <div className="text-sm font-medium text-slate-800 dark:text-white">{r}</div>
+                                        <button onClick={() => handleDeleteReason(r)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 text-red-500 rounded transition-all">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Add Form */}
+                            <form onSubmit={handleAddReason} className="flex gap-2">
+                                <input 
+                                    placeholder="Nuevo Motivo (ej. Estética)" 
+                                    value={newReason} 
+                                    onChange={e => setNewReason(e.target.value)}
+                                    className="flex-1 text-xs p-2 border border-slate-300 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:border-primary outline-none"
+                                />
+                                <button type="submit" disabled={!newReason} className="bg-slate-900 dark:bg-primary text-white p-2 rounded-lg disabled:opacity-50 hover:opacity-90">
+                                    <Plus size={16} />
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                </div>
+
+            </div>
+          ) : (
+            <div className="bg-slate-50 dark:bg-slate-700/20 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-center text-slate-500 text-sm">
+                <Lock size={20} className="mx-auto mb-2 opacity-50" />
+                Solo Doctores y Administradores pueden editar los precios y datos del sistema.
+            </div>
+          )}
+      </div>
+
+      {/* 3. User Management */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -218,7 +322,7 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
             </p>
           </div>
           
-          {user.role === UserRole.OWNER && (
+          {user.role === UserRole.PRINCIPAL && (
              <button 
                onClick={() => handleOpenModal()}
                className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
@@ -229,10 +333,10 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
           )}
         </div>
 
-        {user.role !== UserRole.OWNER ? (
+        {user.role !== UserRole.PRINCIPAL ? (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg p-4 flex items-center gap-3 text-red-700 dark:text-red-300">
              <Lock size={20} />
-             <p className="text-sm font-medium">Solo el Dr. Taboada (Administrador) puede gestionar usuarios.</p>
+             <p className="text-sm font-medium">Solo el Usuario Principal puede gestionar el personal.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -247,11 +351,13 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
                        <div>
                           <h4 className="font-semibold text-slate-800 dark:text-white text-sm">{u.name}</h4>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                            u.role === UserRole.OWNER 
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' 
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            u.role === UserRole.PRINCIPAL 
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
+                              : u.role === UserRole.DOCTOR
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                              : 'bg-slate-200 text-slate-700 dark:bg-slate-600 dark:text-slate-300'
                           }`}>
-                            {u.role === UserRole.OWNER ? 'Administrador' : 'Staff'}
+                            {u.role === UserRole.PRINCIPAL ? 'Principal' : u.role === UserRole.DOCTOR ? 'Doctor' : 'Staff'}
                           </span>
                        </div>
                     </div>
@@ -328,18 +434,19 @@ const Settings: React.FC<SettingsProps> = ({ user, isDarkMode, toggleTheme }) =>
                       value={formName}
                       onChange={e => setFormName(e.target.value)}
                       className={inputClass}
-                      placeholder="Ej. Dra. Ana"
+                      placeholder="Ej. Dr. Juan / Srta. Ana"
                    />
                 </div>
                 <div>
-                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Rol / Cargo</label>
+                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Rol / Permisos</label>
                    <select
                       value={formRole}
                       onChange={e => setFormRole(e.target.value as UserRole)}
                       className={inputClass}
                    >
-                      <option value={UserRole.SECRETARY}>Recepcionista / Staff</option>
-                      <option value={UserRole.OWNER}>Administrador / Doctor</option>
+                      <option value={UserRole.STAFF}>Staff (Secretaria/Asistente) - Acceso General</option>
+                      <option value={UserRole.DOCTOR}>Doctor - Manejo de Pacientes & Configuración</option>
+                      <option value={UserRole.PRINCIPAL}>Principal - Acceso Total (Admin)</option>
                    </select>
                 </div>
                 <div>

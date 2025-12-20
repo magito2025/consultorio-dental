@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { db } from '../services/db';
 import { 
-  LayoutDashboard, 
+  Home, // Changed from LayoutDashboard
   Users, 
   Calendar, 
   Settings, 
@@ -26,12 +26,16 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, onNavigate }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false); // New state for hover interaction
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [customLogo, setCustomLogo] = useState<string | null>(null);
 
   useEffect(() => {
     setCustomLogo(db.getLogo());
   }, []);
+
+  // Logic: Sidebar is visually expanded if it's NOT collapsed OR if it IS collapsed but currently hovered
+  const isVisuallyExpanded = !isSidebarCollapsed || isSidebarHovered;
 
   // Elegant Tooth Icon Component (Default)
   const ToothLogo = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
@@ -65,7 +69,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
         onNavigate(view);
         setIsMobileMenuOpen(false);
       }}
-      title={label}
+      title={!isVisuallyExpanded ? label : ''}
       className={`relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all overflow-hidden whitespace-nowrap group ${
         currentView === view 
           ? 'bg-primary text-white shadow-lg shadow-primary/30' 
@@ -75,7 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
       <div className="min-w-[24px] flex justify-center">
         <Icon size={22} strokeWidth={currentView === view ? 2.5 : 2} />
       </div>
-      <span className={`font-medium transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+      <span className={`font-medium transition-all duration-300 ${!isVisuallyExpanded ? 'opacity-0 w-0 translate-x-10' : 'opacity-100 w-auto translate-x-0'}`}>
         {label}
       </span>
     </button>
@@ -85,20 +89,22 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       {/* Sidebar - Desktop */}
       <aside 
+        onMouseEnter={() => setIsSidebarHovered(true)}
+        onMouseLeave={() => setIsSidebarHovered(false)}
         className={`hidden lg:flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 fixed h-full z-20 transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? 'w-24' : 'w-72'
+          isVisuallyExpanded ? 'w-72 shadow-2xl' : 'w-24'
         }`}
       >
         <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center h-24 relative">
           
-          <div className={`flex items-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}>
+          <div className={`flex items-center gap-3 transition-all duration-300 ${!isVisuallyExpanded ? 'justify-center w-full' : ''}`}>
             {/* Logo Container */}
-            <div className={`bg-gradient-to-br from-primary to-teal-700 p-2.5 rounded-xl text-white shrink-0 shadow-md transition-all duration-300 ${isSidebarCollapsed ? 'scale-110' : ''}`}>
-               <LogoComponent size={isSidebarCollapsed ? 28 : 26} />
+            <div className={`bg-gradient-to-br from-primary to-teal-700 p-2.5 rounded-xl text-white shrink-0 shadow-md transition-all duration-300 ${!isVisuallyExpanded ? 'scale-110' : ''}`}>
+               <LogoComponent size={!isVisuallyExpanded ? 28 : 26} />
             </div>
             
             {/* Text (Hidden when collapsed) */}
-            <div className={`min-w-[180px] transition-all duration-300 overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'w-0 opacity-0 absolute' : 'w-auto opacity-100 relative'}`}>
+            <div className={`min-w-[180px] transition-all duration-300 overflow-hidden whitespace-nowrap ${!isVisuallyExpanded ? 'w-0 opacity-0 absolute' : 'w-auto opacity-100 relative'}`}>
                <h1 className="font-bold text-base text-slate-800 dark:text-white tracking-tight leading-tight">Clínica del<br/>Dr. Taboada</h1>
                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mt-0.5">Sistema de Gestión</p>
             </div>
@@ -106,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
 
           <button 
              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-             className={`absolute -right-4 top-8 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 p-2 rounded-full text-slate-500 hover:text-primary hover:border-primary shadow-sm transition-all z-50 transform hover:scale-110`}
+             className={`absolute -right-4 top-8 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 p-2 rounded-full text-slate-500 hover:text-primary hover:border-primary shadow-sm transition-all z-50 transform hover:scale-110 ${isSidebarHovered && isSidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
              title={isSidebarCollapsed ? "Expandir menú" : "Contraer menú"}
           >
              {isSidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
@@ -114,33 +120,39 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden pt-6">
-          <NavItem view="dashboard" icon={LayoutDashboard} label="Inicio" />
+          <NavItem view="dashboard" icon={Home} label="Inicio" />
           <NavItem view="patients" icon={Users} label="Pacientes" />
           <NavItem view="finance" icon={CreditCard} label="Pagos y Finanzas" />
           <NavItem view="appointments" icon={Calendar} label="Agenda" />
-          <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-700">
-            <p className={`px-4 text-[10px] font-bold text-slate-400 uppercase mb-2 transition-opacity duration-300 ${isSidebarCollapsed ? 'opacity-0 h-0' : 'opacity-100'}`}>Sistema</p>
-            <NavItem view="settings" icon={Settings} label="Configuración" />
-          </div>
+          
+          {/* Config link for Principals and Doctors */}
+          {(user.role === UserRole.PRINCIPAL || user.role === UserRole.DOCTOR) && (
+            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-700">
+                <p className={`px-4 text-[10px] font-bold text-slate-400 uppercase mb-2 transition-opacity duration-300 ${!isVisuallyExpanded ? 'opacity-0 h-0' : 'opacity-100'}`}>Sistema</p>
+                <NavItem view="settings" icon={Settings} label="Configuración" />
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-100 dark:border-slate-700">
-          <div className={`flex items-center gap-3 px-3 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl mb-2 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className={`flex items-center gap-3 px-3 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl mb-2 overflow-hidden ${!isVisuallyExpanded ? 'justify-center' : ''}`}>
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-500 flex items-center justify-center text-slate-600 dark:text-slate-200 font-bold text-xs shrink-0">
               {user.name.charAt(0)}
             </div>
-            <div className={`flex-1 min-w-0 transition-all duration-300 overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+            <div className={`flex-1 min-w-0 transition-all duration-300 overflow-hidden whitespace-nowrap ${!isVisuallyExpanded ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.role === UserRole.OWNER ? 'Director' : 'Administración'}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {user.role === UserRole.PRINCIPAL ? 'Director' : user.role === UserRole.DOCTOR ? 'Doctor' : 'Staff'}
+              </p>
             </div>
           </div>
           <button 
             onClick={() => setShowLogoutConfirm(true)}
             title="Cerrar Sesión"
-            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors overflow-hidden whitespace-nowrap ${!isVisuallyExpanded ? 'justify-center' : ''}`}
           >
             <LogOut size={20} />
-            <span className={`font-medium transition-all duration-300 ${isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>Cerrar Sesión</span>
+            <span className={`font-medium transition-all duration-300 ${!isVisuallyExpanded ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
@@ -161,11 +173,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, currentView, 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-30 bg-white dark:bg-slate-800 pt-20 px-4 space-y-2">
-          <NavItem view="dashboard" icon={LayoutDashboard} label="Inicio" />
+          <NavItem view="dashboard" icon={Home} label="Inicio" />
           <NavItem view="patients" icon={Users} label="Pacientes" />
           <NavItem view="finance" icon={CreditCard} label="Pagos y Finanzas" />
           <NavItem view="appointments" icon={Calendar} label="Agenda" />
-          <NavItem view="settings" icon={Settings} label="Configuración" />
+          {(user.role === UserRole.PRINCIPAL || user.role === UserRole.DOCTOR) && (
+            <NavItem view="settings" icon={Settings} label="Configuración" />
+          )}
           <button 
             onClick={() => setShowLogoutConfirm(true)}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl mt-8"

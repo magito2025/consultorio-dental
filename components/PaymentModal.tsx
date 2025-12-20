@@ -15,6 +15,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, preSele
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Dynamic Data
+  const [commonPaymentReasons, setCommonPaymentReasons] = useState<string[]>([]);
+
   // Form Fields
   const [amountPaid, setAmountPaid] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
@@ -26,6 +29,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, preSele
   useEffect(() => {
     const allPatients = db.getPatients();
     setPatients(allPatients);
+    setCommonPaymentReasons(db.getConsultationReasons());
     
     if (preSelectedPatientId) {
         const found = allPatients.find(p => p.id === preSelectedPatientId);
@@ -65,20 +69,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, preSele
       { id: 'QR', icon: <QrCode size={18} /> },
       { id: 'Tarjeta', icon: <CreditCard size={18} /> },
       { id: 'Transferencia', icon: <DollarSign size={18} /> },
-  ];
-
-  // Common payment reasons for quick selection
-  const commonPaymentReasons = [
-      "Consulta General",
-      "Limpieza Dental (Profilaxis)",
-      "Resina Simple",
-      "Resina Compuesta",
-      "Exodoncia Simple",
-      "Exodoncia 3er Molar",
-      "Abono Ortodoncia",
-      "Pago Prótesis",
-      "Blanqueamiento",
-      "Pago a Cuenta (Deuda)"
   ];
 
   const handleReasonClick = (reason: string) => {
@@ -163,7 +153,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ onClose, onSuccess, preSele
                        <input 
                            type="text"
                            autoFocus
-                           placeholder="Buscar paciente..."
+                           placeholder="Buscar paciente por nombre o CI..."
                            value={searchTerm}
                            onChange={e => setSearchTerm(e.target.value)}
                            className={inputClass + " pl-10"}
