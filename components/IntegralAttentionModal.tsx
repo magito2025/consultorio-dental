@@ -18,18 +18,15 @@ const IntegralAttentionModal: React.FC<IntegralAttentionModalProps> = ({ patient
   // --- STATE ---
   // Data
   const [availableProcedures, setAvailableProcedures] = useState<ProcedureItem[]>([]);
-// Odontograma
-const [odontograma, setOdontograma] = useState([]);
-const [piezaModal, setPiezaModal] = useState(null);
-  // Clinical
+ // Odontograma
+  const [odontograma, setOdontograma] = useState<PiezaDental[]>([]);
+  const [piezaModal, setPiezaModal] = useState<PiezaDental | null>(null);
+ 
+ // Clinical
   const [procedure, setProcedure] = useState('');
   const [description, setDescription] = useState('');
 
-  // Odontograma
-  const [odontograma, setOdontograma] = useState<PiezaDental[]>([]);
-  const [piezaModal, setPiezaModal] = useState<PiezaDental | null>(null);
-
-  // Financial
+   // Financial
   const [totalCost, setTotalCost] = useState<number>(0);
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo');
