@@ -44,7 +44,6 @@ const [piezaModal, setPiezaModal] = useState(null);
   const currentDebt = db.getPatientBalance(patient.id).debt;
   const costoProcedimiento = availableProcedures.find(p => p.name === procedure)?.price || 0;
   const costoPiezas = odontograma.reduce((s, p) => s + (p.precio || 0), 0);
-  const costoPiezas = odontograma.reduce((s, p) => s + (p.precio || 0), 0);
   const newDebt = (costoProcedimiento + costoPiezas) - (parseFloat(paymentAmount) || 0);
   const finalBalance = currentDebt + newDebt;
 
